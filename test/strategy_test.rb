@@ -455,7 +455,7 @@ module SignedRequestTests
 
   class CookieAndParamNotPresentTest < TestCase
     test 'is nil' do
-      assert_nil strategy.send(:signed_request_from_cookie)
+      assert_nil strategy.send(:signed_request)
     end
 
     test 'throws an error on calling build_access_token' do
@@ -463,12 +463,11 @@ module SignedRequestTests
     end
   end
 
-  class CookiePresentTest < TestCase
+  class SignedRequestCookiePresentTest < TestCase
     def setup(algo = nil)
       super()
       @payload = {
         'algorithm' => algo || 'HMAC-SHA256',
-        'code' => 'm4c0d3z',
         'issued_at' => Time.now.to_i,
         'user_id' => '123456'
       }
@@ -477,12 +476,30 @@ module SignedRequestTests
     end
 
     test 'parses the access code out from the cookie' do
-      assert_equal @payload, strategy.send(:signed_request_from_cookie)
+      assert_equal @payload, strategy.send(:signed_request)
     end
 
     test 'throws an error if the algorithm is unknown' do
       setup('UNKNOWN-ALGO')
-      assert_equal "unknown algorithm: UNKNOWN-ALGO", assert_raises(OmniAuth::Facebook::SignedRequest::UnknownSignatureAlgorithmError) { strategy.send(:signed_request_from_cookie) }.message
+      assert_equal "unknown algorithm: UNKNOWN-ALGO", assert_raises(OmniAuth::Facebook::SignedRequest::UnknownSignatureAlgorithmError) { strategy.send(:signed_request) }.message
+    end
+  end
+
+  class SignedRequestParamsPresentTest < TestCase
+    def setup(algo = nil)
+      super()
+      @options[:signed_request_source] = :params
+      @payload = {
+        'algorithm' => algo || 'HMAC-SHA256',
+        'issued_at' => Time.now.to_i,
+        'user_id' => '123456'
+      }
+
+      @request.params['signed_request'] = signed_request(@payload, @client_secret)
+    end
+
+    test 'parses the access code out from the cookie' do
+      assert_equal @payload, strategy.send(:signed_request)
     end
   end
 
@@ -493,7 +510,7 @@ module SignedRequestTests
     end
 
     test 'empty param' do
-      assert_nil strategy.send(:signed_request_from_cookie)
+      assert_nil strategy.send(:signed_request)
     end
   end
 

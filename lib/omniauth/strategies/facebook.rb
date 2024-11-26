@@ -25,6 +25,9 @@ module OmniAuth
 
       option :authorization_code_from_signed_request_in_cookie, nil
 
+      # use :params option explicitly if client can communicate signed request only through query params.
+      option :signed_request_source, :cookies
+
       option :authorize_options, [:scope, :display, :auth_type, :config_id]
 
       option :secure_image_url, true
@@ -119,22 +122,36 @@ module OmniAuth
 
       private
 
-      def signed_request_from_cookie
-        @signed_request_from_cookie ||= raw_signed_request_from_cookie && OmniAuth::Facebook::SignedRequest.parse(raw_signed_request_from_cookie, client.secret)
+      def signed_request
+        @signed_request ||= raw_signed_request && OmniAuth::Facebook::SignedRequest.parse(raw_signed_request, client.secret)
+      end
+
+      def raw_signed_request
+        @raw_signed_request ||= case options[:signed_request_source].to_sym
+          when :cookies then raw_signed_request_from_cookie
+          when :params then raw_signed_request_from_params
+          else nil
+        end
       end
 
       def raw_signed_request_from_cookie
         request.cookies["fbsr_#{client.id}"]
       end
 
+      def raw_signed_request_from_params
+        request.params['signed_request']
+      end
+
       # Picks the authorization code in order, from:
       #
       # 1. The request 'code' param (manual callback from standard server-side flow)
       # 2. A signed request from cookie (passed from the client during the client-side flow)
+      #    or from request.params, which can be useful when client app(SPA), along with an access token,
+      #    already obtained a signed request but setting cookies is problematic.
       def with_authorization_code!
         if request.params.key?('code')
           yield
-        elsif code_from_signed_request = signed_request_from_cookie && signed_request_from_cookie['code']
+        elsif code_from_signed_request = signed_request && signed_request['code']
           request.params['code'] = code_from_signed_request
           options.authorization_code_from_signed_request_in_cookie = true
           # NOTE The code from the signed fbsr_XXX cookie is set by the FB JS SDK will confirm that the identity of the
